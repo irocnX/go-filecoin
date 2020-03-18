@@ -22,8 +22,10 @@ import (
 
 	"github.com/filecoin-project/go-filecoin/internal/app/go-filecoin/internal/submodule"
 	"github.com/filecoin-project/go-filecoin/internal/app/go-filecoin/paths"
+	"github.com/filecoin-project/go-filecoin/internal/app/go-filecoin/paymentchannel"
 	"github.com/filecoin-project/go-filecoin/internal/app/go-filecoin/plumbing/msg"
 	"github.com/filecoin-project/go-filecoin/internal/app/go-filecoin/porcelain"
+
 	"github.com/filecoin-project/go-filecoin/internal/pkg/block"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/cborutil"
 	"github.com/filecoin-project/go-filecoin/internal/pkg/chain"
@@ -502,6 +504,17 @@ func (node *Node) setupRetrievalMining(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get mining address")
 	}
+
+	waiter := msg.NewWaiter(node.chain.ChainReader, node.chain.MessageStore, node.Blockstore.Blockstore, node.Blockstore.CborStore)
+
+	mgrStateViewer := paymentchannel.NewManagerStateViewer(node.Chain().ChainReader, node.Blockstore.CborStore)
+	paychMgr := paymentchannel.NewManager(
+		ctx,
+		node.Repo.Datastore(),
+		waiter,
+		node.Messaging.Outbox,
+		mgrStateViewer)
+
 	rp, err := submodule.NewRetrievalProtocolSubmodule(
 		node.Blockstore.Blockstore,
 		node.Repo.Datastore(),
@@ -509,9 +522,10 @@ func (node *Node) setupRetrievalMining(ctx context.Context) error {
 		node.Host(),
 		providerAddr,
 		node.Wallet.Wallet,
-		nil, // TODO: payment channel manager API, in follow-up
+		paychMgr,
 		node.PieceManager(),
 	)
+
 	if err != nil {
 		return errors.Wrap(err, "failed to build node.RetrievalProtocol")
 	}
