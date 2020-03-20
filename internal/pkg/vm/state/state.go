@@ -111,15 +111,12 @@ func (st *State) SetActor(ctx context.Context, key actorKey, a *actor.Actor) err
 }
 
 // DeleteActor remove the actor from the storage.
-//
-// This method will NOT return an error if the actor was not found.
 func (st *State) DeleteActor(ctx context.Context, key actorKey) error {
-	err := st.rootNode.Delete(ctx, string(key.Bytes()))
-	st.dirty = true
-	if err == hamt.ErrNotFound {
-		return nil
+	if err := st.rootNode.Delete(ctx, string(key.Bytes())); err != nil {
+		return err
 	}
-	return err
+	st.dirty = true
+	return nil
 }
 
 // Commit will flush the state tree into the backing store.
